@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "512780229719",
+    "project_id": "my-msu-food-73686",
+    "storage_bucket": "my-msu-food-73686.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:512780229719:android:3e1e895376fed7cb64d712",
+        "android_client_info": {
+          "package_name": "com.example.flutter_msu_food"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "512780229719-crf6cpktoi3obtjo8e0gd32n2mal24sh.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.flutter_msu_food",
+            "certificate_hash": "9bfe977f6f92d1f6e6276b9d377bdf57c5e5ecf6"
+          }
+        },
+        {
+          "client_id": "512780229719-cm7n1kt000iee70d62bbu0kq8sik0gab.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAm4doxud7cCzhOkc6cB2w-Ytuf58HUg2w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "512780229719-cm7n1kt000iee70d62bbu0kq8sik0gab.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "512780229719-hhsmcpged7i1jmq2e2jmpofk0k68bnui.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.flutterMsuFood"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

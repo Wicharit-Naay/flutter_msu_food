@@ -1,0 +1,72 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function myUserDoc() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function profile() {
+      return get(myUserDoc()).data;
+    }
+
+    function isShopOwnerOf(shopId) {
+      return signedIn()
+        && profile().role == 'shop'
+        && profile().shopId == shopId;
+    }
+
+    function isOrderCountBump() {
+      return request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly(['orderCount'])
+        && request.resource.data.orderCount == resource.data.orderCount + 1;
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && request.auth.uid == uid;
+    }
+
+    match /shops/{shopId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid;
+      allow update: if signedIn()
+        && (resource.data.ownerId == request.auth.uid || isOrderCountBump());
+
+      match /members/{studentId} {
+        allow read: if isShopOwnerOf(shopId);
+        allow create: if isShopOwnerOf(shopId)
+          && request.resource.data.keys().hasOnly(['name', 'studentId', 'createdAt'])
+          && request.resource.data.keys().hasAll(['name', 'studentId', 'createdAt'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.studentId == studentId;
+        allow update: if false;
+        allow delete: if isShopOwnerOf(shopId);
+      }
+    }
+
+    match /menuItems/{itemId} {
+      allow read: if signedIn();
+      allow create: if isShopOwnerOf(request.resource.data.shopId);
+      allow update, delete: if isShopOwnerOf(resource.data.shopId);
+    }
+
+    match /orders/{orderId} {
+      allow read: if signedIn()
+        && (resource.data.customerId == request.auth.uid
+          || isShopOwnerOf(resource.data.shopId));
+      allow create: if signedIn()
+        && request.resource.data.customerId == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update: if signedIn()
+        && (isShopOwnerOf(resource.data.shopId)
+          || resource.data.customerId == request.auth.uid);
+      allow delete: if false;
+    }
+  }
+}
