@@ -5,6 +5,7 @@ import '../../models/menu_item.dart';
 import '../../models/shop.dart';
 import '../../services/db.dart';
 import 'order_track_screen.dart';
+import '../../widgets/menu_image.dart';
 
 /// หน้าเมนูและตะกร้าของลูกค้า
 ///
@@ -126,6 +127,9 @@ class _MenuScreenState extends State<MenuScreen> {
                         // เมนูที่ของหมดหรือร้านปิดจะกดเพิ่มไม่ได้
                         final canOrder = isOpen && m.available;
                         return ListTile(
+                          leading: MenuImage(
+                            bytes: m.imageBytes,
+                          ), // เพิ่มบรรทัดนี้
                           title: Text(m.name),
                           subtitle: Text(
                             m.available ? '${m.price} บาท' : 'ของหมดแล้ว',

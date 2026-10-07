@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+
 import '../../models/menu_item.dart';
 import '../../services/db.dart';
+import '../../services/image_service.dart';
+import '../../widgets/menu_image.dart';
 
 /// หน้าจอจัดการเมนูของร้าน
 ///
@@ -33,305 +37,260 @@ class MenuManageScreen extends StatelessWidget {
       text: item == null ? '' : '${item.price}',
     );
 
+    final imageService = ImageService();
+
+    // สถานะของรูปภายในฟอร์ม
+    String? newImage; // Base64 ของรูปที่เพิ่งเลือก
+    bool removeImage = false; // ผู้ใช้กดลบรูปเดิม
+    bool saving = false; // กำลังบันทึก ใช้กันกดซ้ำ
+
     await showDialog(
       context: context,
-      builder: (ctx) {
-        final isEdit = item != null;
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          // ลำดับการเลือกรูปตัวอย่าง
+          // รูปใหม่ > รูปเดิม > ไม่มีรูป
+          final preview = newImage != null
+              ? ImageService.decode(newImage)
+              : (removeImage ? null : item?.imageBytes);
 
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.10),
-                  blurRadius: 30,
-                  offset: const Offset(0, 12),
+          // ==================================================================
+          // เลือกรูปจากกล้อง / คลังภาพ
+          // ==================================================================
+
+          Future<void> pick(ImageSource source) async {
+            try {
+              final b64 = await imageService.pickAsBase64(source);
+
+              if (b64 == null || !ctx.mounted) {
+                return;
+              }
+
+              setDialogState(() {
+                newImage = b64;
+                removeImage = false;
+              });
+            } catch (e) {
+              if (!ctx.mounted) return;
+
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    e.toString().replaceFirst(
+                      'Exception: ',
+                      '',
+                    ),
+                  ),
                 ),
-              ],
+              );
+            }
+          }
+
+          return AlertDialog(
+            title: Text(
+              item == null
+                  ? 'เพิ่มเมนูใหม่'
+                  : 'แก้ไขเมนู',
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ============================================================
-                // Header
-                // ============================================================
 
-                Row(
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF2EB),
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      child: Icon(
-                        isEdit
-                            ? Icons.edit_rounded
-                            : Icons.add_rounded,
-                        color: const Color(0xFFFF6B35),
-                      ),
-                    ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ==========================================================
+                  // รูปเมนู
+                  // ==========================================================
 
-                    const SizedBox(width: 14),
-
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            isEdit
-                                ? 'แก้ไขเมนู'
-                                : 'เพิ่มเมนูใหม่',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF1D1D1F),
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            isEdit
-                                ? 'แก้ไขชื่อหรือราคาของเมนู'
-                                : 'กรอกข้อมูลเมนูที่ต้องการเพิ่ม',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF8E8E93),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    IconButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      icon: const Icon(
-                        Icons.close_rounded,
-                        color: Color(0xFF8E8E93),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 24),
-
-                // ============================================================
-                // Menu Name
-                // ============================================================
-
-                const Text(
-                  'ชื่อเมนู',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF48484A),
+                  MenuImage(
+                    bytes: preview,
+                    size: 120,
                   ),
-                ),
 
-                const SizedBox(height: 8),
+                  const SizedBox(height: 8),
 
-                TextField(
-                  controller: nameCtrl,
-                  autofocus: !isEdit,
-                  textInputAction: TextInputAction.next,
-                  decoration: InputDecoration(
-                    hintText: 'เช่น ข้าวกะเพราหมูกรอบ',
-                    prefixIcon: const Icon(
-                      Icons.restaurant_menu_rounded,
-                    ),
-                    filled: true,
-                    fillColor: const Color(0xFFF7F7F9),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(
-                        color: Color(0xFFE8E8EA),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(
-                        color: Color(0xFFFF6B35),
-                        width: 1.5,
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 18),
-
-                // ============================================================
-                // Price
-                // ============================================================
-
-                const Text(
-                  'ราคา',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF48484A),
-                  ),
-                ),
-
-                const SizedBox(height: 8),
-
-                TextField(
-                  controller: priceCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: '0',
-                    prefixIcon: const Icon(
-                      Icons.payments_outlined,
-                    ),
-                    suffixText: 'บาท',
-                    filled: true,
-                    fillColor: const Color(0xFFF7F7F9),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(
-                        color: Color(0xFFE8E8EA),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(
-                        color: Color(0xFFFF6B35),
-                        width: 1.5,
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // ============================================================
-                // Buttons
-                // ============================================================
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: SizedBox(
-                        height: 48,
-                        child: OutlinedButton(
-                          onPressed: () {
-                            Navigator.pop(ctx);
-                          },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF636366),
-                            side: const BorderSide(
-                              color: Color(0xFFE0E0E2),
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                          child: const Text(
-                            'ยกเลิก',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                  Wrap(
+                    spacing: 8,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      // ถ่ายรูป
+                      IconButton.filledTonal(
+                        tooltip: 'ถ่ายรูป',
+                        icon: const Icon(
+                          Icons.photo_camera,
                         ),
-                      ),
-                    ),
-
-                    const SizedBox(width: 12),
-
-                    Expanded(
-                      flex: 2,
-                      child: SizedBox(
-                        height: 48,
-                        child: FilledButton.icon(
-                          onPressed: () async {
-                            final name =
-                                nameCtrl.text.trim();
-
-                            final price = num.tryParse(
-                              priceCtrl.text.trim(),
-                            );
-
-                            if (name.isEmpty || price == null) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'กรุณากรอกชื่อเมนูและราคาให้ถูกต้อง',
-                                  ),
-                                  behavior: SnackBarBehavior.floating,
+                        onPressed: saving
+                            ? null
+                            : () => pick(
+                                  ImageSource.camera,
                                 ),
-                              );
-
-                              return;
-                            }
-
-                            // CREATE
-                            if (item == null) {
-                              await db.addMenuItem(
-                                shopId,
-                                name,
-                                price,
-                              );
-                            }
-                            // UPDATE
-                            else {
-                              await db.updateMenuItem(
-                                item.id,
-                                name,
-                                price,
-                              );
-                            }
-
-                            if (ctx.mounted) {
-                              Navigator.pop(ctx);
-                            }
-                          },
-                          icon: const Icon(
-                            Icons.save_rounded,
-                            size: 19,
-                          ),
-                          label: const Text(
-                            'บันทึก',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFFFF6B35),
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                        ),
                       ),
+
+                      // เลือกจากคลังภาพ
+                      IconButton.filledTonal(
+                        tooltip: 'เลือกจากคลังภาพ',
+                        icon: const Icon(
+                          Icons.photo_library,
+                        ),
+                        onPressed: saving
+                            ? null
+                            : () => pick(
+                                  ImageSource.gallery,
+                                ),
+                      ),
+
+                      // ลบรูป
+                      if (preview != null)
+                        IconButton(
+                          tooltip: 'ลบรูป',
+                          icon: const Icon(
+                            Icons.delete_outline,
+                          ),
+                          onPressed: saving
+                              ? null
+                              : () {
+                                  setDialogState(() {
+                                    newImage = null;
+                                    removeImage = true;
+                                  });
+                                },
+                        ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // ==========================================================
+                  // ชื่อเมนู
+                  // ==========================================================
+
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'ชื่อเมนู',
+                      border: OutlineInputBorder(),
                     ),
-                  ],
-                ),
-              ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // ==========================================================
+                  // ราคา
+                  // ==========================================================
+
+                  TextField(
+                    controller: priceCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'ราคา (บาท)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        );
-      },
+
+            actions: [
+              // ==============================================================
+              // ยกเลิก
+              // ==============================================================
+
+              TextButton(
+                onPressed: saving
+                    ? null
+                    : () => Navigator.pop(ctx),
+                child: const Text('ยกเลิก'),
+              ),
+
+              // ==============================================================
+              // บันทึก
+              // ==============================================================
+
+              FilledButton(
+                onPressed: saving
+                    ? null
+                    : () async {
+                        final name = nameCtrl.text.trim();
+
+                        final price = num.tryParse(
+                          priceCtrl.text.trim(),
+                        );
+
+                        if (name.isEmpty || price == null) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'กรุณากรอกชื่อเมนูและราคาให้ถูกต้อง',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+
+                        setDialogState(
+                          () => saving = true,
+                        );
+
+                        try {
+                          // CREATE
+                          if (item == null) {
+                            await db.addMenuItem(
+                              shopId,
+                              name,
+                              price,
+                              imageBase64: newImage,
+                            );
+                          }
+
+                          // UPDATE
+                          else {
+                            await db.updateMenuItem(
+                              item.id,
+                              name,
+                              price,
+                              imageBase64: newImage,
+                              removeImage: removeImage,
+                            );
+                          }
+
+                          if (ctx.mounted) {
+                            Navigator.pop(ctx);
+                          }
+                        } catch (e) {
+                          if (!ctx.mounted) return;
+
+                          setDialogState(
+                            () => saving = false,
+                          );
+
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'บันทึกไม่สำเร็จ: $e',
+                              ),
+                            ),
+                          );
+                        }
+                      },
+
+                // Loading ขณะบันทึก
+                child: saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text('บันทึก'),
+              ),
+            ],
+          );
+        },
+      ),
     );
 
-    // ปิด controller หลัง dialog ปิด
     nameCtrl.dispose();
     priceCtrl.dispose();
   }
@@ -350,7 +309,9 @@ class MenuManageScreen extends StatelessWidget {
       builder: (ctx) {
         return Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+          ),
           child: Container(
             padding: const EdgeInsets.all(22),
             decoration: BoxDecoration(
@@ -464,7 +425,9 @@ class MenuManageScreen extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('ลบ "${item.name}" แล้ว'),
+            content: Text(
+              'ลบ "${item.name}" แล้ว',
+            ),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -483,9 +446,9 @@ class MenuManageScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
 
-      // =========================================================
+      // ======================================================================
       // AppBar
-      // =========================================================
+      // ======================================================================
 
       appBar: AppBar(
         elevation: 0,
@@ -516,9 +479,9 @@ class MenuManageScreen extends StatelessWidget {
         ),
       ),
 
-      // =========================================================
+      // ======================================================================
       // Floating Add Button
-      // =========================================================
+      // ======================================================================
 
       floatingActionButton: FloatingActionButton.extended(
         elevation: 2,
@@ -542,9 +505,9 @@ class MenuManageScreen extends StatelessWidget {
         ),
       ),
 
-      // =========================================================
+      // ======================================================================
       // Menu Stream
-      // =========================================================
+      // ======================================================================
 
       body: StreamBuilder<List<MenuItem>>(
         // READ — ใช้ฐานข้อมูลเดิม
@@ -577,23 +540,25 @@ class MenuManageScreen extends StatelessWidget {
           }
 
           final availableCount = items
-              .where((item) => item.available)
+              .where(
+                (item) => item.available,
+              )
               .length;
 
           return Column(
             children: [
-              // =================================================
-              // Summary Header
-              // =================================================
+              // ===============================================================
+              // Summary
+              // ===============================================================
 
               _MenuSummary(
                 total: items.length,
                 available: availableCount,
               ),
 
-              // =================================================
+              // ===============================================================
               // Menu List
-              // =================================================
+              // ===============================================================
 
               Expanded(
                 child: ListView.builder(
@@ -714,6 +679,10 @@ class _MenuSummary extends StatelessWidget {
   }
 }
 
+// ============================================================================
+// Summary Item
+// ============================================================================
+
 class _SummaryItem extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -747,7 +716,9 @@ class _SummaryItem extends StatelessWidget {
             size: 21,
             color: foregroundColor,
           ),
+
           const SizedBox(height: 6),
+
           Text(
             title,
             style: TextStyle(
@@ -757,7 +728,9 @@ class _SummaryItem extends StatelessWidget {
               color: foregroundColor,
             ),
           ),
+
           const SizedBox(height: 5),
+
           Text(
             subtitle,
             maxLines: 1,
@@ -823,25 +796,12 @@ class _MenuCard extends StatelessWidget {
             child: Row(
               children: [
                 // ============================================================
-                // Icon
+                // รูปเมนู
                 // ============================================================
 
-                Container(
-                  width: 54,
-                  height: 54,
-                  decoration: BoxDecoration(
-                    color: isAvailable
-                        ? const Color(0xFFFFF2EB)
-                        : const Color(0xFFF3F4F6),
-                    borderRadius: BorderRadius.circular(17),
-                  ),
-                  child: Icon(
-                    Icons.fastfood_rounded,
-                    color: isAvailable
-                        ? const Color(0xFFFF6B35)
-                        : const Color(0xFF9CA3AF),
-                    size: 25,
-                  ),
+                MenuImage(
+                  bytes: menu.imageBytes,
+                  size: 54,
                 ),
 
                 const SizedBox(width: 14),

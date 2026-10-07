@@ -142,18 +142,43 @@ class Db {
       .orderBy('name')
       .snapshots()
       .map((s) => s.docs.map(MenuItem.fromDoc).toList());
-  Future<void> addMenuItem(String shopId, String name, num price) async {
+
+  /// CREATE เพิ่มเมนู พร้อมรูป (ถ้ามี)
+  Future<void> addMenuItem(
+    String shopId,
+    String name,
+    num price, {
+    String? imageBase64, // ใหม่: รูปเป็น Base64
+  }) async {
     await _menu.add({
       'shopId': shopId,
       'name': name.trim(),
       'price': price,
       'available': true,
       'createdAt': FieldValue.serverTimestamp(),
+      // if ใน Map: ใส่ฟิลด์นี้เฉพาะเมื่อมีรูปเท่านั้น
+      if (imageBase64 != null) 'imageBase64': imageBase64,
     });
   }
 
-  Future<void> updateMenuItem(String id, String name, num price) async {
-    await _menu.doc(id).update({'name': name.trim(), 'price': price});
+  /// UPDATE แก้ไขเมนู มีสามกรณีของรูป
+  /// imageBase64 != null -> เปลี่ยนเป็นรูปใหม่
+  /// removeImage == true -> ลบรูปเดิมออก
+  /// ไม่ส่งทั้งสองค่า -> รูปเดิมคงอยู่
+  Future<void> updateMenuItem(
+    String id,
+    String name,
+    num price, {
+    String? imageBase64,
+    bool removeImage = false,
+  }) async {
+    await _menu.doc(id).update({
+      'name': name.trim(),
+      'price': price,
+      if (imageBase64 != null) 'imageBase64': imageBase64,
+      if (removeImage && imageBase64 == null)
+        'imageBase64': FieldValue.delete(), // ลบฟิลด์ทิ้ง
+    });
   }
 
   // สลับสถานะมีของหรือของหมด จุดสาธิตเรียลไทม์ข้อที่ 2
